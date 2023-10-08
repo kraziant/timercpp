@@ -1,24 +1,17 @@
-#include <iostream>
 #include "timercpp.h"
+#include <chrono>
+#include <iostream>
 
 using namespace std;
 
-int main() {
-    Timer t;
+int main()
+{
 
-    t.setInterval([&]() {
-        cout << "Hey.. After each 1s..." << endl;
-    }, 1000); 
+    timer::set_timeout st{[]() { std::cout << "hello\n"; },
+                          std::chrono::milliseconds(300)};
 
-    t.setTimeout([&]() {
-        cout << "Hey.. After 5.2s. But I will stop the timer!" << endl;
-        t.stop();
-    }, 5200); 
+    timer::interval    inter{[]() { std::cout << "tick...\n"; },
+                          std::chrono::milliseconds(100)};
 
-    
-
-    cout << "I am Timer" <<endl;
-
-
-    while(true); // Keep mail thread active
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }

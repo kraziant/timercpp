@@ -7,46 +7,148 @@
 #include <iostream>
 #include <thread>
 
-class Timer {
-  std::atomic<bool> active{true};
+namespace timer {
+    class set_timeout {
 
-public:
-  void setTimeout(std::function<void()> function, int delay);
-  void setInterval(std::function<void()> function, int interval);
-  void stop();
-};
+        public:
 
-#endif // TIMERCPP_H__
+            set_timeout(const std::function<void()>     &func,
+                        const std::chrono::milliseconds &ms)
+                : _active(true)
+                , _delay(ms)
+            {
 
-#ifndef TIMERCPP_IMPLEMENTATION_H__
-#define TIMERCPP_IMPLEMENTATION_H__
+#ifdef TIMER_DEBUG
+                _created = std::chrono::system_clock::now();
+#endif
+                _thread = std::thread([=]() {
+                    if (!_active.load())
+                        return;
+#ifdef TIMER_DEBUG
+                    _prerun = std::chrono::system_clock::now();
+#endif
+                    std::this_thread::sleep_for(delay());
+                    if (!_active.load())
+                        return;
+#ifdef TIMER_DEBUG
+                    _runned = std::chrono::system_clock::now();
+#endif
+                    func();
+                });
+            }
 
-void Timer::setTimeout(std::function<void()> function, int delay) {
-  active = true;
-  std::thread t([=]() {
-    if (!active.load())
-      return;
-    std::this_thread::sleep_for(std::chrono::milliseconds(delay));
-    if (!active.load())
-      return;
-    function();
-  });
-  t.detach();
-}
+            set_timeout(const set_timeout &st) = delete;
+            set_timeout(set_timeout &&st) = default;
 
-void Timer::setInterval(std::function<void()> function, int interval) {
-  active = true;
-  std::thread t([=]() {
-    while (active.load()) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(interval));
-      if (!active.load())
-        return;
-      function();
-    }
-  });
-  t.detach();
-}
+            set_timeout &operator=(const set_timeout &st) = delete;
+            set_timeout &operator=(set_timeout &&st) = default;
 
-void Timer::stop() { active = false; }
+            ~set_timeout()
+            {
+                _active = false;
+                if (_thread.joinable()) {
+                    _thread.join();
+                }
+#ifdef TIMER_DEBUG
+                std::cout
+                    << "real delays(us): "
+                    << (std::chrono::duration_cast<std::chrono::microseconds>(
+                            _prerun - _created)
+                            .count() /
+                        1000.0)
+                    << " "
 
-#endif // TIMERCPP_IMPLEMENTATION_H__
+                    << (std::chrono::duration_cast<std::chrono::microseconds>(
+                            _runned - _created)
+                            .count() /
+                        1000.0)
+                    << "\n";
+#endif
+            }
+
+        protected:
+
+            inline std::chrono::milliseconds delay() { return _delay; }
+
+        private:
+
+            std::atomic<bool>         _active;
+            std::thread               _thread;
+            std::chrono::milliseconds _delay;
+#ifdef TIMER_DEBUG
+            std::chrono::time_point<std::chrono::system_clock> _created;
+            std::chrono::time_point<std::chrono::system_clock> _prerun;
+            std::chrono::time_point<std::chrono::system_clock> _runned;
+#endif
+    };
+    class interval {
+
+        public:
+
+            interval(const std::function<void()>     &func,
+                     const std::chrono::milliseconds &ms)
+                : _active(true)
+                , _delay(ms)
+            {
+
+#ifdef TIMER_DEBUG
+                _created = std::chrono::system_clock::now();
+#endif
+                _thread = std::thread([=]() {
+                    while (_active.load()) {
+                        std::this_thread::sleep_for(delay());
+                        if (!_active.load())
+                            return;
+                        func();
+                    }
+                });
+            }
+
+            interval(const interval &st) = delete;
+            interval(interval &&st) = default;
+
+            interval &operator=(const interval &st) = delete;
+            interval &operator=(interval &&st) = default;
+
+            ~interval()
+            {
+                _active = false;
+                if (_thread.joinable()) {
+                    _thread.join();
+                }
+#ifdef TIMER_DEBUG
+                std::cout
+                    << "real delays(us): "
+                    << (std::chrono::duration_cast<std::chrono::microseconds>(
+                            _prerun - _created)
+                            .count() /
+                        1000.0)
+                    << " "
+
+                    << (std::chrono::duration_cast<std::chrono::microseconds>(
+                            _runned - _created)
+                            .count() /
+                        1000.0)
+                    << "\n";
+#endif
+            }
+
+        protected:
+
+            inline std::chrono::milliseconds delay() { return _delay; }
+
+        private:
+
+            std::atomic<bool>         _active;
+            std::thread               _thread;
+            std::chrono::milliseconds _delay;
+#ifdef TIMER_DEBUG
+            std::chrono::time_point<std::chrono::system_clock> _created;
+            std::chrono::time_point<std::chrono::system_clock> _prerun;
+            std::chrono::time_point<std::chrono::system_clock> _runned;
+#endif
+    };
+
+} // namespace timer
+
+#endif
